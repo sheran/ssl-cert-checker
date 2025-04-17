@@ -1,0 +1,77 @@
+name: SSL Certificate Checker
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Runs daily at 8 AM UTC
+  workflow_dispatch:     # Allows manual triggering
+
+jobs:
+  check-ssl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write  # Required to create GitHub issues
+
+    steps:
+      - name: Checkout domains list
+        uses: actions/checkout@v3
+
+      - name: Install expirybot
+        uses: sheran/install-expirybot-action@v1
+
+      - name: Tailscale
+        env:
+          TS_ENABLED: ${{ secrets.TS_OAUTH_CLIENT_ID != '' && secrets.TS_OAUTH_SECRET != '' && 'true' || 'false' }}
+        if: ${{ env.TS_ENABLED == 'true' }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Run SSL check
+        id: check
+        run: |
+          OUTPUT=$(expirybot -file domains.txt)
+          echo "$OUTPUT"
+
+          echo "CERT_OUTPUT<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if echo "$OUTPUT" | grep -qE 'expires in'; then
+            echo "HAS_EXPIRING_CERTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "HAS_EXPIRING_CERTS=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Display output
+        run: |
+          echo "${{ steps.check.outputs.CERT_OUTPUT }}"
+
+      - name: Create GitHub issue for expiring certs
+        if: steps.check.outputs.HAS_EXPIRING_CERTS == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueTitle = "SSL Certificate Expiry Warning";
+            const issueBody = `The following SSL certificates are expiring soon: ${{ steps.check.outputs.CERT_OUTPUT }} Please renew these certificates as soon as possible.`;
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
+            const existing = issues.data.find(issue => issue.title === issueTitle);
+
+            if (!existing) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: issueTitle,
+                body: issueBody
+              });
+            } else {
+              console.log("Issue already exists. Skipping creation.");
+            }

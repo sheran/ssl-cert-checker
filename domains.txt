@@ -1,0 +1,4 @@
+tailscale.com,14
+ziglang.org,14
+odin-lang.org,30
+voidlinux.org,30
