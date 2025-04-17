@@ -52,7 +52,7 @@ jobs:
         with:
           script: |
             const issueTitle = "SSL Certificate Expiry Warning";
-            const issueBody = `The following SSL certificates are expiring soon: ${{ steps.check.outputs.CERT_OUTPUT }} Please renew these certificates as soon as possible.`;
+            const issueBody = `The following SSL certificates are expiring soon: \n ${{ steps.check.outputs.CERT_OUTPUT }} \n Please renew these certificates as soon as possible.`;
 
             const issues = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
