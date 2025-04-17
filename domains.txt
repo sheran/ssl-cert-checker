@@ -1,4 +1,4 @@
-tailscale.com,14
+tailscale.com,90
 ziglang.org,14
-odin-lang.org,30
+odin-lang.org,100
 voidlinux.org,30
